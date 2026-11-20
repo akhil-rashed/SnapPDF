@@ -1,0 +1,296 @@
+/* Page Cards */
+.page-card {
+  position: relative;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, transform var(--dur-fast) var(--ease-spring);
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.page-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.page-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.page-card.is-dragging {
+  opacity: 0.28;
+}
+
+.drag-ghost {
+  position: fixed;
+  z-index: 1500;
+  pointer-events: none;
+  box-shadow: var(--shadow-lg);
+  opacity: 0.94;
+}
+
+.page-thumb-wrap {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  background: var(--bg-soft);
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.page-thumb-wrap img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+
+.page-num-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  color: var(--bg);
+  font-size: 0.76rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.page-select-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  color: transparent;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+
+.page-card.is-selected .page-select-check {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.quality-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 0.73rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  backdrop-filter: blur(6px);
+}
+
+.quality-badge button {
+  text-decoration: underline;
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.page-meta-row {
+  padding: 8px 10px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+
+.page-filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.page-dims {
+  color: var(--ink-subtle);
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 8px;
+  gap: 2px;
+}
+
+.page-actions .btn-icon {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  color: var(--ink-muted);
+}
+
+.page-actions .btn-icon:hover {
+  background: var(--bg-soft);
+  color: var(--ink);
+}
+
+/* Color Swatches */
+.swatch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+
+.swatch[aria-pressed="true"] {
+  border-color: var(--accent);
+  transform: scale(1.12);
+}
+
+/* Card Info Boxes */
+.info-box {
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.info-box.is-mint {
+  background: var(--mint-soft);
+  border-color: color-mix(in srgb, var(--mint) 30%, transparent);
+  color: var(--ink);
+}
+
+.info-box.is-amber {
+  background: var(--amber-soft);
+  border-color: color-mix(in srgb, var(--amber) 30%, transparent);
+  color: var(--ink);
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* Interactive Tool Canvases (Crop, Scan, Redact, Sign, Preview) */
+.tool-stage {
+  position: relative;
+  background: var(--bg-soft);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  max-height: 60dvh;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.tool-stage canvas {
+  max-width: 100%;
+  max-height: 58dvh;
+  display: block;
+}
+
+.tool-controls-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.preview-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.sig-pad-canvas {
+  width: 100%;
+  height: 160px;
+  background: #fff;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--r-sm);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.saved-sigs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.saved-sig-chip {
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saved-sig-chip img {
+  height: 28px;
+  max-width: 90px;
+  object-fit: contain;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px 16px;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border-strong);
+}
