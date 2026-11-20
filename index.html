@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SnapPDF — Offline Image to PDF</title>
+  <meta name="description" content="Turn photos and images into clean PDFs 100% offline in your browser.">
+  <meta name="theme-color" content="#F25C3B">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <!-- Critical CSS inlined for instant first paint without layout shift -->
+  <style>
+    :root{--bg:#FAF8F5;--surface:#FFFFFF;--ink:#1C1917;--ink-muted:#6B6560;--border:#E8E2DA;--accent:#F25C3B;--accent-ink:#FFFFFF}
+    @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171513;--surface:#262320;--ink:#F5F1EC;--ink-muted:#ADA59D;--border:#36312C;--accent:#FF6E4E;--accent-ink:#171513}}
+    :root[data-theme="dark"]{--bg:#171513;--surface:#262320;--ink:#F5F1EC;--ink-muted:#ADA59D;--border:#36312C;--accent:#FF6E4E;--accent-ink:#171513}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+    [hidden]{display:none!important}
+  </style>
+
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <div class="export-progress" id="exportProgress" hidden>
+    <div class="export-progress-bar" id="exportProgressBar"></div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg class="icon"><use href="icons/sprite.svg#file-text"></use></svg>
+      </div>
+      <span>SnapPDF</span>
+    </div>
+
+    <div class="topbar-actions">
+      <div class="privacy-pill" id="privacyPill" title="100% Offline — no network calls">
+        <svg class="icon icon-sm" aria-hidden="true"><use href="icons/sprite.svg#shield"></use></svg>
+        <span id="privacyPillText">100% Offline</span>
+      </div>
+      <button type="button" class="btn btn-ghost btn-icon" id="undoBtn" disabled aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)">
+        <svg class="icon"><use href="icons/sprite.svg#undo"></use></svg>
+      </button>
+      <button type="button" class="btn btn-ghost btn-icon" id="redoBtn" disabled aria-label="Redo (Ctrl+Shift+Z)" title="Redo">
+        <svg class="icon"><use href="icons/sprite.svg#redo"></use></svg>
+      </button>
+      <button type="button" class="btn btn-ghost btn-icon" id="themeToggleBtn" aria-label="Toggle dark mode" title="Toggle theme">
+        <svg class="icon"><use href="icons/sprite.svg#moon"></use></svg>
+      </button>
+      <button type="button" class="btn btn-ghost btn-icon" id="helpBtn" aria-label="Keyboard shortcuts" title="Shortcuts (?)">
+        <svg class="icon"><use href="icons/sprite.svg#help"></use></svg>
+      </button>
+    </div>
+  </header>
+
+  <input type="file" id="fileInput" accept="image/*,.heic,.heif" multiple hidden>
+  <input type="file" id="cameraInput" accept="image/*" capture="environment" hidden>
+
+  <!-- Non-blocking Resume Banner -->
+  <div class="resume-banner" id="resumeBanner" hidden>
+    <div class="resume-info">
+      <strong>Resume where you left off?</strong>
+      <span id="resumeMeta">Saved project found locally</span>
+    </div>
+    <div class="resume-actions">
+      <button type="button" class="btn btn-ghost btn-sm" id="discardSessionBtn">Start fresh</button>
+      <button type="button" class="btn btn-primary btn-sm" id="resumeBtn">Resume</button>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <main class="empty-stage" id="emptyStage">
+    <section class="dropzone" id="dropzone" aria-label="Image drop zone">
+      <svg class="dropzone-illus" viewBox="0 0 160 120" fill="none" aria-hidden="true">
+        <rect x="24" y="20" width="68" height="84" rx="12" transform="rotate(-7 58 62)" fill="#F3EFEA" stroke="#D6CEC3" stroke-width="2"/>
+        <rect x="64" y="16" width="72" height="88" rx="12" fill="#FFFFFF" stroke="#1C1917" stroke-width="2.2"/>
+        <rect x="76" y="30" width="48" height="34" rx="6" fill="#E8F6F1" stroke="#2E9E7B" stroke-width="2"/>
+        <circle cx="90" cy="43" r="5" fill="#F25C3B"/>
+        <path d="M78 60l14-13 10 9 9-7 11 11" stroke="#2E9E7B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M78 76h44M78 86h30" stroke="#1C1917" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+
+      <h1>Drop your photos here, we'll do the rest</h1>
+      <p>Turn receipts, notes, IDs, or 100+ photos into a clean PDF. Everything stays on your device.</p>
+
+      <button type="button" class="btn btn-primary btn-lg" id="addImagesHeroBtn">
+        <svg class="icon" aria-hidden="true"><use href="icons/sprite.svg#plus"></use></svg>
+        <span>Add images</span>
+      </button>
+
+      <div class="dropzone-subactions">
+        <button type="button" class="btn btn-secondary btn-sm" id="cameraHeroBtn">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="icons/sprite.svg#camera"></use></svg>
+          <span>Camera</span>
+        </button>
+        <span class="offline-note">Or paste from clipboard (Ctrl/Cmd + V)</span>
+      </div>
+    </section>
+  </main>
+
+  <!-- Editor Workspace -->
+  <main class="editor-shell" id="editorShell" hidden>
+    <div class="workspace-col">
+      <div class="workspace-toolbar">
+        <div class="toolbar-group">
+          <strong id="pageCountLabel">0 pages</strong>
+          <button type="button" class="btn btn-secondary btn-sm" id="addMoreBtn">
+            <svg class="icon icon-sm" aria-hidden="true"><use href="icons/sprite.svg#plus"></use></svg>
+            <span>Add</span>
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm" id="selectAllBtn">Select all</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="previewBtn">
+            <svg class="icon icon-sm" aria-hidden="true"><use href="icons/sprite.svg#eye"></use></svg>
+            <span>Preview</span>
+          </button>
+        </div>
+
+        <div class="toolbar-group" id="selectionActions" hidden>
+          <span id="selCountLabel" style="font-size:0.82rem;color:var(--ink-muted)">0 selected</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="moveUpBtn" title="Move earlier">Up</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="moveDownBtn" title="Move later">Down</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="dupSelectedBtn">Duplicate</button>
+          <button type="button" class="btn btn-danger btn-sm" id="delSelectedBtn">Delete</button>
+        </div>
+      </div>
+
+      <section class="page-grid" id="pageGrid" aria-label="PDF Pages"></section>
+    </div>
+
+    <!-- Settings Sidebar (Desktop) / Bottom Sheet (Mobile) -->
+    <aside class="settings-panel" id="settingsPanel" aria-label="PDF Settings">
+      <div class="modal-header" style="padding:10px 14px">
+        <strong style="font-size:0.95rem">PDF Settings</strong>
+        <button type="button" class="btn btn-ghost btn-icon sheet-close-btn" id="sheetCloseBtn" aria-label="Close settings">
+          <svg class="icon"><use href="icons/sprite.svg#x"></use></svg>
+        </button>
+      </div>
+
+      <div class="settings-tabs" id="settingsTabs" role="tablist">
+        <button type="button" role="tab" data-tab="layout" aria-selected="true">Layout</button>
+        <button type="button" role="tab" data-tab="compress" aria-selected="false">Compress</button>
+        <button type="button" role="tab" data-tab="extras" aria-selected="false">Extras</button>
+        <button type="button" role="tab" data-tab="export" aria-selected="false">Export</button>
+      </div>
+
+      <div class="settings-scroll">
+        <!-- Layout Tab -->
+        <div class="settings-pane" data-pane="layout">
+          <div class="field">
+            <label class="field-label" for="templateSelect">Layout Template</label>
+            <select class="select" id="templateSelect">
+              <option value="standard">Standard (1 image per page)</option>
+              <option value="id-card">ID Card Combo (Front + Back 1:1)</option>
+              <option value="passport">Passport / Photo Sheet (35×45 mm)</option>
+              <option value="2-up">2-up Grid</option>
+              <option value="4-up">4-up Grid</option>
+              <option value="6-up">6-up Grid</option>
+              <option value="contact-sheet">Contact Sheet (with names)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="pageSizeSelect">Page Size</label>
+            <select class="select" id="pageSizeSelect">
+              <option value="a4">A4 (210 × 297 mm)</option>
+              <option value="letter">Letter (8.5 × 11 in)</option>
+              <option value="legal">Legal (8.5 × 14 in)</option>
+              <option value="a3">A3 (297 × 420 mm)</option>
+              <option value="a5">A5 (148 × 210 mm)</option>
+              <option value="fit-image">Fit to image</option>
+              <option value="custom">Custom size</option>
+            </select>
+          </div>
+
+          <div class="two-col" id="customSizeRow" hidden>
+            <div class="field">
+              <label class="field-label" for="customW">Width</label>
+              <input class="input" id="customW" type="number" min="10" value="210">
+            </div>
+            <div class="field">
+              <label class="field-label" for="customH">Height</label>
+              <input class="input" id="customH" type="number" min="10" value="297">
+            </div>
+            <div class="field" style="grid-column:span 2">
+              <label class="field-label" for="customUnit">Unit</label>
+              <select class="select" id="customUnit">
+                <option value="mm">Millimeters (mm)</option>
+                <option value="cm">Centimeters (cm)</option>
+                <option value="in">Inches (in)</option>
+                <option value="px">Pixels (px)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Orientation</span>
+            <div class="segmented" id="orientGroup">
+              <button type="button" data-v="portrait" aria-pressed="true">Portrait</button>
+              <button type="button" data-v="landscape" aria-pressed="false">Landscape</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="marginRange">
+              <span>Margins</span>
+              <span id="marginVal">10 mm</span>
+            </label>
+            <input class="range" id="marginRange" type="range" min="0" max="40" value="10">
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="fitModeSelect">Image Fit</label>
+            <select class="select" id="fitModeSelect">
+              <option value="fit">Fit inside margins</option>
+              <option value="fill">Fill page (crop edges)</option>
+              <option value="stretch">Stretch to fill</option>
+              <option value="original">Original size</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Page Background</span>
+            <div class="swatch-row" id="bgSwatches">
+              <button type="button" class="swatch" data-color="#ffffff" style="background:#ffffff" aria-label="White" aria-pressed="true"></button>
+              <button type="button" class="swatch" data-color="#FAF8F5" style="background:#FAF8F5" aria-label="Warm Cream" aria-pressed="false"></button>
+              <button type="button" class="swatch" data-color="#1C1917" style="background:#1C1917" aria-label="Dark Ink" aria-pressed="false"></button>
+              <input type="color" id="bgColorInput" value="#ffffff" aria-label="Custom background color" style="width:32px;height:28px;border:none;background:none;cursor:pointer">
+            </div>
+          </div>
+        </div>
+
+        <!-- Compress Tab -->
+        <div class="settings-pane" data-pane="compress" hidden>
+          <div class="field">
+            <label class="field-label" for="compressionMode">Compression Mode</label>
+            <select class="select" id="compressionMode">
+              <option value="preset">Quality Preset</option>
+              <option value="target">Target File Size (Auto-fit)</option>
+              <option value="custom">Manual Quality &amp; Resolution</option>
+            </select>
+          </div>
+
+          <div class="field" id="presetGroup">
+            <label class="field-label" for="compressionPreset">Preset</label>
+            <select class="select" id="compressionPreset">
+              <option value="original">Original (Minimal loss)</option>
+              <option value="high">High Quality (Sharp print)</option>
+              <option value="balanced" selected>Balanced (Recommended)</option>
+              <option value="low">Compact (Small file)</option>
+            </select>
+          </div>
+
+          <div id="targetSizeGroup" hidden class="field">
+            <label class="field-label" for="targetSizeVal">Maximum PDF Size Goal</label>
+            <div class="two-col">
+              <input class="input" id="targetSizeVal" type="number" min="20" step="0.1" value="2">
+              <select class="select" id="targetSizeUnit">
+                <option value="MB" selected>MB</option>
+                <option value="KB">KB</option>
+              </select>
+            </div>
+            <div class="info-box is-mint">
+              SnapPDF searches quality and resolution automatically to stay under your limit (great for visa/job portals).
+            </div>
+          </div>
+
+          <div id="customCompressGroup" hidden style="display:flex;flex-direction:column;gap:12px">
+            <div class="field">
+              <label class="field-label" for="customQuality">
+                <span>JPEG Quality</span>
+                <span id="qualityVal">78%</span>
+              </label>
+              <input class="range" id="customQuality" type="range" min="15" max="100" value="78">
+            </div>
+            <div class="field">
+              <label class="field-label" for="customMaxDim">Max Image Dimension</label>
+              <select class="select" id="customMaxDim">
+                <option value="4000">4000 px (Ultra)</option>
+                <option value="2400">2400 px (Print)</option>
+                <option value="1800" selected>1800 px (Standard)</option>
+                <option value="1200">1200 px (Web/Email)</option>
+                <option value="800">800 px (Tiny)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Extras Tab -->
+        <div class="settings-pane" data-pane="extras" hidden>
+          <div class="switch-row">
+            <label for="pageNumbersToggle" style="font-weight:600;font-size:0.9rem">Page Numbers</label>
+            <label class="switch">
+              <input type="checkbox" id="pageNumbersToggle">
+              <span class="switch-track"></span>
+            </label>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label class="field-label" for="pageNumberFormat">Format</label>
+              <select class="select" id="pageNumberFormat">
+                <option value="n">1, 2, 3</option>
+                <option value="n-of-total">1 / N</option>
+                <option value="page-n">Page 1</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label" for="pageNumberPos">Position</label>
+              <select class="select" id="pageNumberPos">
+                <option value="bottom-center">Bottom Center</option>
+                <option value="bottom-right">Bottom Right</option>
+                <option value="top-right">Top Right</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="watermarkText">Text Watermark</label>
+            <input class="input" id="watermarkText" type="text" placeholder="e.g. CONFIDENTIAL or DRAFT">
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="watermarkOpacity">
+              <span>Watermark Opacity</span>
+              <span id="wmOpacityVal">20%</span>
+            </label>
+            <input class="range" id="watermarkOpacity" type="range" min="5" max="60" value="20">
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="watermarkPos">Watermark Position</label>
+            <select class="select" id="watermarkPos">
+              <option value="diagonal">Diagonal Center</option>
+              <option value="center">Horizontal Center</option>
+              <option value="top-left">Top Left</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Export Tab -->
+        <div class="settings-pane" data-pane="export" hidden>
+          <div class="field">
+            <label class="field-label" for="pdfFilename">Filename</label>
+            <input class="input" id="pdfFilename" type="text" value="SnapPDF-Document">
+          </div>
+          <div class="field">
+            <label class="field-label" for="metaTitle">PDF Title (Metadata)</label>
+            <input class="input" id="metaTitle" type="text" placeholder="Optional document title">
+          </div>
+          <div class="field">
+            <label class="field-label" for="metaAuthor">Author</label>
+            <input class="input" id="metaAuthor" type="text" placeholder="Optional author name">
+          </div>
+          <div class="field">
+            <label class="field-label" for="pdfPassword">
+              <span>Password Protection (RC4-128)</span>
+              <svg class="icon icon-sm" aria-hidden="true"><use href="icons/sprite.svg#lock"></use></svg>
+            </label>
+            <input class="input" id="pdfPassword" type="password" placeholder="Leave blank for no password" autocomplete="new-password">
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        <div class="size-estimate">
+          <span id="sizeEstimateText">Original: 0 KB → Est. PDF: 0 KB</span>
+        </div>
+        <div class="export-row">
+          <button type="button" class="btn btn-primary" id="desktopCreateBtn">
+            <svg class="icon" aria-hidden="true"><use href="icons/sprite.svg#download"></use></svg>
+            <span>Create PDF</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-icon" id="shareBtn" aria-label="Share PDF" title="Share PDF">
+            <svg class="icon"><use href="icons/sprite.svg#share"></use></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Mobile Bottom Action Bar -->
+  <div class="mobile-bar" id="mobileBar" hidden>
+    <button type="button" class="btn btn-secondary" id="mobileSettingsBtn">
+      <svg class="icon" aria-hidden="true"><use href="icons/sprite.svg#sliders"></use></svg>
+      <span>Settings</span>
+    </button>
+    <button type="button" class="btn btn-primary" id="mobileCreateBtn">
+      <svg class="icon" aria-hidden="true"><use href="icons/sprite.svg#download"></use></svg>
+      <span>Create PDF</span>
+    </button>
+  </div>
+
+  <!-- Tool Modal (Crop, Scan, Redact, Sign) -->
+  <div class="modal-backdrop" id="toolModal" hidden role="dialog" aria-modal="true" aria-labelledby="toolModalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="toolModalTitle">Edit Page</h2>
+        <button type="button" class="btn btn-ghost btn-icon" id="toolModalClose" aria-label="Close">
+          <svg class="icon"><use href="icons/sprite.svg#x"></use></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="toolModalBody"></div>
+      <div class="modal-footer" id="toolModalFooter"></div>
+    </div>
+  </div>
+
+  <!-- Live PDF Preview Modal -->
+  <div class="modal-backdrop" id="previewModal" hidden role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="previewTitle">Live PDF Preview</h2>
+        <button type="button" class="btn btn-ghost btn-icon" id="previewClose" aria-label="Close preview">
+          <svg class="icon"><use href="icons/sprite.svg#x"></use></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="display:grid;place-items:center;background:var(--bg-soft)">
+        <canvas id="previewCanvas" style="max-width:100%;max-height:64dvh;border-radius:6px;box-shadow:var(--shadow-lg)"></canvas>
+      </div>
+      <div class="modal-footer">
+        <div class="preview-nav">
+          <button type="button" class="btn btn-secondary btn-sm" id="previewPrev">
+            <svg class="icon icon-sm"><use href="icons/sprite.svg#chevron-left"></use></svg>
+            <span>Previous</span>
+          </button>
+          <strong id="previewIndicator" style="font-size:0.9rem">Page 1 of 1</strong>
+          <button type="button" class="btn btn-secondary btn-sm" id="previewNext">
+            <span>Next</span>
+            <svg class="icon icon-sm"><use href="icons/sprite.svg#chevron-right"></use></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div class="modal-backdrop" id="helpModal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2 class="modal-title" id="helpTitle">Keyboard Shortcuts</h2>
+        <button type="button" class="btn btn-ghost btn-icon" id="helpCloseBtn" aria-label="Close">
+          <svg class="icon"><use href="icons/sprite.svg#x"></use></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="shortcut-grid">
+          <span>Paste image from clipboard</span><kbd>Ctrl / Cmd + V</kbd>
+          <span>Undo last edit</span><kbd>Ctrl / Cmd + Z</kbd>
+          <span>Redo</span><kbd>Ctrl / Cmd + Shift + Z</kbd>
+          <span>Select all pages</span><kbd>Ctrl / Cmd + A</kbd>
+          <span>Range select pages</span><kbd>Shift + Click</kbd>
+          <span>Delete selected pages</span><kbd>Delete / Backspace</kbd>
+          <span>Close modal / sheet</span><kbd>Esc</kbd>
+          <span>Toggle this cheat sheet</span><kbd>?</kbd>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
